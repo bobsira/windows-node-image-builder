@@ -92,6 +92,7 @@ source "hyperv-iso" "windows-server" {
   boot_command = ["a<enter><wait>"]
   boot_wait    = "2s"
 
+  secondary_iso_images              = ["./setup/auto-install.iso"]
   vm_name                          = var.vm_name
   cpus                             = var.vm_cpus
   memory                           = var.vm_memory

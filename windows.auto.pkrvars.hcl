@@ -20,7 +20,6 @@ guest_additions_mode = "disable"
 winrm_username  = "Administrator"
 winrm_password  = "password"
 
-// Removeable media
-win_iso         = "c:/iso/SERVER_EVAL_x64FRE_en-us.iso"
+win_iso         = "https://go.microsoft.com/fwlink/p/?LinkID=2195280&clcid=0x409&culture=en-us&country=US"
 // In Powershell use the "Get-FileHash" command to find the checksum of the ISO
 win_checksum    = "3E4FA6D8507B554856FC9CA6079CC402DF11A8B79344871669F0251535255325"
