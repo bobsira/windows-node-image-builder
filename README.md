@@ -25,7 +25,7 @@ cd windows-node-image-builder
 choco install packer
 ```
 
-4. Load the ./setup/auto-install.iso
+4. Download and install AnyBurn from [here](https://www.anyburn.com/download.php) to generate the `./setup/auto-install.iso` file. Then load/run auto-install.iso.
 
 5. Then run the following commands:
 

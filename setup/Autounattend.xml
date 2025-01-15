@@ -98,7 +98,7 @@
             <OEMInformation>
                 <HelpCustomized>false</HelpCustomized>
             </OEMInformation>
-            <ComputerName>windows-2022</ComputerName>
+            <ComputerName>minikube-m02</ComputerName>
             <TimeZone>Central European Standard Time</TimeZone>
             <RegisteredOwner />
         </component>
