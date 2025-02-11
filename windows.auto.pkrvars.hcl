@@ -1,5 +1,5 @@
 // VM hardware specs
-vm_name         = "GI-W11-001"
+vm_name         = "WIN-SER-2025"
 vm_cpus         = "2"
 vm_memory       = "4096"
 vm_disk_size    = "65536"
@@ -20,6 +20,12 @@ guest_additions_mode = "disable"
 winrm_username  = "Administrator"
 winrm_password  = "password"
 
-win_iso         = "https://go.microsoft.com/fwlink/p/?LinkID=2195280&clcid=0x409&culture=en-us&country=US"
+// server 2022
+// win_iso         = "https://go.microsoft.com/fwlink/p/?LinkID=2195280&clcid=0x409&culture=en-us&country=US"
+// server 2025
+win_iso = "https://go.microsoft.com/fwlink/?linkid=2293312&clcid=0x409&culture=en-us&country=us"
 // In Powershell use the "Get-FileHash" command to find the checksum of the ISO
-win_checksum    = "3E4FA6D8507B554856FC9CA6079CC402DF11A8B79344871669F0251535255325"
+// server 2022
+//win_checksum    = "3E4FA6D8507B554856FC9CA6079CC402DF11A8B79344871669F0251535255325"
+// server 2025
+win_checksum = "D0EF4502E350E3C6C53C15B1B3020D38A5DED011BF04998E950720AC8579B23D"

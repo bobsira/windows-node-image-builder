@@ -31,6 +31,9 @@ function Install-Containerd {
     $Version = Get-ContainerdLatestVersion
 
     $Version = $Version.TrimStart('v')
+    # TODO: revert to this line after finding the right way to handle the new containerd version
+    # $Version = $Version.TrimStart('v')
+    $Version = "1.7.25"
     Write-Output "* Downloading and installing Containerd v$version at $InstallPath"
 
     
