@@ -1,5 +1,5 @@
 // VM hardware specs
-vm_name         = "WIN-SER-2025"
+vm_name         = "hybrid-minikube-windows-server"
 vm_cpus         = "2"
 vm_memory       = "4096"
 vm_disk_size    = "65536"

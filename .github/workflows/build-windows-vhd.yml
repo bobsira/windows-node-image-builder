@@ -1,0 +1,67 @@
+name: Packer Build VHD
+
+on:
+  workflow_dispatch:
+    inputs:
+      server_version:
+        description: 'Windows Server version (e.g., "2025" or "2022")'
+        required: true
+        default: '2025'
+      win_iso_url:
+        description: 'URL or local path of Windows Server ISO'
+        required: true
+        default: ''  # Users can override or rely on repo default logic
+      win_checksum:
+        description: 'Checksum of the ISO (SHA256)'
+        required: true
+        default: ''
+      winrm_password:
+        description: 'Password for WinRM Administrator account'
+        required: true
+
+jobs:
+  build-vhd:
+    runs-on:
+      - self-hosted
+      - windows
+      - hyperv
+
+    env:
+      PACKER_CACHE_DIR: "${{ github.workspace }}\\packer_cache"
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v3
+
+      - name: Install Packer
+        run: |
+          choco install packer -y
+          packer version
+
+      - name: Validate Packer Template
+        run: |
+          echo "Validating Packer template with server_version=${{ github.event.inputs.server_version }}"
+          packer validate \
+            -var "server_version=${{ github.event.inputs.server_version }}" \
+            -var "win_iso=${{ github.event.inputs.win_iso_url }}" \
+            -var "win_checksum=${{ github.event.inputs.win_checksum }}" \
+            -var "winrm_password=${{ github.event.inputs.winrm_password }}" \
+            windows.json.pkr.hcl
+
+      - name: Build Windows Server VHD
+        run: |
+          echo "Starting Packer build for Windows Server ${{ github.event.inputs.server_version }}"
+          packer build \
+            -var "server_version=${{ github.event.inputs.server_version }}" \
+            -var "win_iso=${{ github.event.inputs.win_iso_url }}" \
+            -var "win_checksum=${{ github.event.inputs.win_checksum }}" \
+            -var "winrm_password=${{ github.event.inputs.winrm_password }}" \
+            windows.json.pkr.hcl
+
+      - name: Locate Built VHD
+        run: |
+          echo "Listing output directory:"
+          dir
+
+      - name: Finish
+        run: echo "Packer build finished. Inspect the logs/artifacts above."
