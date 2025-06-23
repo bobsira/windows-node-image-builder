@@ -33,6 +33,7 @@ jobs:
             Write-Error "Hyper-V feature is not enabled on this host."
           } else {
             Write-Output "Hyper-V is enabled."
+          } # Closing brace added here
 
       - name: Create and remove a temporary VM
         shell: pwsh
