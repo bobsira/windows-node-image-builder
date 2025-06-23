@@ -40,15 +40,17 @@ jobs:
       - name: Create and remove a temporary VM
         shell: pwsh
         run: |
-          $vmName = "temp-test-vm"
-          # Cleanup if exists
-          if (Get-VM -Name $vmName -ErrorAction SilentlyContinue) {
-            Stop-VM -Name $vmName -Force
+          Start-Process -FilePath "powershell.exe" -ArgumentList "-Command `"& { 
+            $vmName = 'temp-test-vm'
+            # Cleanup if exists
+            if (Get-VM -Name $vmName -ErrorAction SilentlyContinue) {
+              Stop-VM -Name $vmName -Force
+              Remove-VM -Name $vmName -Force
+            }
+            # Create a minimal generation 2 VM (no OS) just to test Hyper-V commands
+            New-VM -Name $vmName -MemoryStartupBytes 512MB -Generation 2 | Out-Null
+            Write-Output 'Created VM $vmName'
+            # Remove it immediately
             Remove-VM -Name $vmName -Force
-          }
-          # Create a minimal generation 2 VM (no OS) just to test Hyper-V commands
-          New-VM -Name $vmName -MemoryStartupBytes 512MB -Generation 2 | Out-Null
-          Write-Output "Created VM $vmName"
-          # Remove it immediately
-          Remove-VM -Name $vmName -Force
-          Write-Output "Removed VM $vmName"
+            Write-Output 'Removed VM $vmName'
+          }`"" -Verb RunAs -Wait
