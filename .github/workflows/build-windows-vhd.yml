@@ -63,22 +63,42 @@ jobs:
             }
           }`"" -Verb RunAs -Wait
 
-      - name: Run Packer commands to generate VHD
+      - name: Initialize Packer plugins
         shell: pwsh
         run: |
           Start-Process -FilePath "powershell.exe" -ArgumentList "-Command `"& { 
             Write-Output 'Initializing Packer plugins...'
             packer plugins install github.com/hashicorp/hyperv
+          }`"" -Verb RunAs -Wait
 
+      - name: Initialize Packer configuration
+        shell: pwsh
+        run: |
+          Start-Process -FilePath "powershell.exe" -ArgumentList "-Command `"& { 
             Write-Output 'Initializing Packer configuration...'
             packer init windows.json.pkr.hcl
+          }`"" -Verb RunAs -Wait
 
+      - name: Format Packer configuration
+        shell: pwsh
+        run: |
+          Start-Process -FilePath "powershell.exe" -ArgumentList "-Command `"& { 
             Write-Output 'Formatting Packer configuration...'
             packer fmt -var-file=windows.auto.pkrvars.hcl windows.json.pkr.hcl
+          }`"" -Verb RunAs -Wait
 
+      - name: Validate Packer configuration
+        shell: pwsh
+        run: |
+          Start-Process -FilePath "powershell.exe" -ArgumentList "-Command `"& { 
             Write-Output 'Validating Packer configuration...'
             packer validate .
+          }`"" -Verb RunAs -Wait
 
+      - name: Build VHD using Packer
+        shell: pwsh
+        run: |
+          Start-Process -FilePath "powershell.exe" -ArgumentList "-Command `"& { 
             Write-Output 'Building VHD using Packer...'
             packer build -force -var-file="windows.auto.pkrvars.hcl" "windows.json.pkr.hcl"
           }`"" -Verb RunAs -Wait
