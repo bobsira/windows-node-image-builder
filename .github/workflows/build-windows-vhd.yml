@@ -1,67 +1,51 @@
-name: Packer Build VHD
+name: Build or Test on Hyper-V Runner
 
 on:
-  workflow_dispatch:
-    inputs:
-      server_version:
-        description: 'Windows Server version (e.g., "2025" or "2022")'
-        required: true
-        default: '2025'
-      win_iso_url:
-        description: 'URL or local path of Windows Server ISO'
-        required: true
-        default: ''  # Users can override or rely on repo default logic
-      win_checksum:
-        description: 'Checksum of the ISO (SHA256)'
-        required: true
-        default: ''
-      winrm_password:
-        description: 'Password for WinRM Administrator account'
-        required: true
+  push:
+    branches:
+      - main
 
 jobs:
   build-vhd:
+    name: Run on Hyper-V Self-Hosted Runner
     runs-on:
       - self-hosted
       - windows
       - hyperv
 
-    env:
-      PACKER_CACHE_DIR: "${{ github.workspace }}\\packer_cache"
-
     steps:
-      - name: Checkout Repository
-        uses: actions/checkout@v3
+      - name: Checkout repository
+        uses: actions/checkout@v4
 
-      - name: Install Packer
+      - name: Display runner info
         run: |
-          choco install packer -y
-          packer version
+          echo "Runner OS: $RUNNER_OS"
+          echo "Runner Labels: $RUNNER_LABELS"
+          # In Windows PowerShell runner, you can also query:
+          echo "PowerShell version: $($PSVersionTable.PSVersion)"
 
-      - name: Validate Packer Template
+      - name: Ensure Hyper-V is available
+        shell: pwsh
         run: |
-          echo "Validating Packer template with server_version=${{ github.event.inputs.server_version }}"
-          packer validate \
-            -var "server_version=${{ github.event.inputs.server_version }}" \
-            -var "win_iso=${{ github.event.inputs.win_iso_url }}" \
-            -var "win_checksum=${{ github.event.inputs.win_checksum }}" \
-            -var "winrm_password=${{ github.event.inputs.winrm_password }}" \
-            windows.json.pkr.hcl
+          # Check Hyper-V feature
+          $hv = Get-WindowsOptionalFeature -Online -FeatureName Microsoft-Hyper-V-All
+          if ($hv.State -ne 'Enabled') {
+            Write-Error "Hyper-V feature is not enabled on this host."
+          } else {
+            Write-Output "Hyper-V is enabled."
 
-      - name: Build Windows Server VHD
+      - name: Create and remove a temporary VM
+        shell: pwsh
         run: |
-          echo "Starting Packer build for Windows Server ${{ github.event.inputs.server_version }}"
-          packer build \
-            -var "server_version=${{ github.event.inputs.server_version }}" \
-            -var "win_iso=${{ github.event.inputs.win_iso_url }}" \
-            -var "win_checksum=${{ github.event.inputs.win_checksum }}" \
-            -var "winrm_password=${{ github.event.inputs.winrm_password }}" \
-            windows.json.pkr.hcl
-
-      - name: Locate Built VHD
-        run: |
-          echo "Listing output directory:"
-          dir
-
-      - name: Finish
-        run: echo "Packer build finished. Inspect the logs/artifacts above."
+          $vmName = "temp-test-vm"
+          # Cleanup if exists
+          if (Get-VM -Name $vmName -ErrorAction SilentlyContinue) {
+            Stop-VM -Name $vmName -Force
+            Remove-VM -Name $vmName -Force
+          }
+          # Create a minimal generation 2 VM (no OS) just to test Hyper-V commands
+          New-VM -Name $vmName -MemoryStartupBytes 512MB -Generation 2 | Out-Null
+          Write-Output "Created VM $vmName"
+          # Remove it immediately
+          Remove-VM -Name $vmName -Force
+          Write-Output "Removed VM $vmName"
