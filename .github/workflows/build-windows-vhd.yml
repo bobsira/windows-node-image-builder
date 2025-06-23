@@ -63,20 +63,22 @@ jobs:
             }
           }`"" -Verb RunAs -Wait
 
-      - name: Create and remove a temporary VM
+      - name: Run Packer commands to generate VHD
         shell: pwsh
         run: |
           Start-Process -FilePath "powershell.exe" -ArgumentList "-Command `"& { 
-            $vmName = 'temp-test-vm'
-            # Cleanup if exists
-            if (Get-VM -Name $vmName -ErrorAction SilentlyContinue) {
-              Stop-VM -Name $vmName -Force
-              Remove-VM -Name $vmName -Force
-            }
-            # Create a minimal generation 2 VM (no OS) just to test Hyper-V commands
-            New-VM -Name $vmName -MemoryStartupBytes 512MB -Generation 2 | Out-Null
-            Write-Output 'Created VM $vmName'
-            # Remove it immediately
-            Remove-VM -Name $vmName -Force
-            Write-Output 'Removed VM $vmName'
+            Write-Output 'Initializing Packer plugins...'
+            packer plugins install github.com/hashicorp/hyperv
+
+            Write-Output 'Initializing Packer configuration...'
+            packer init windows.json.pkr.hcl
+
+            Write-Output 'Formatting Packer configuration...'
+            packer fmt -var-file=windows.auto.pkrvars.hcl windows.json.pkr.hcl
+
+            Write-Output 'Validating Packer configuration...'
+            packer validate .
+
+            Write-Output 'Building VHD using Packer...'
+            packer build -force -var-file="windows.auto.pkrvars.hcl" "windows.json.pkr.hcl"
           }`"" -Verb RunAs -Wait
