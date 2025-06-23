@@ -27,13 +27,15 @@ jobs:
       - name: Ensure Hyper-V is available
         shell: pwsh
         run: |
-          # Check Hyper-V feature
-          $hv = Get-WindowsOptionalFeature -Online -FeatureName Microsoft-Hyper-V-All
-          if ($hv.State -ne 'Enabled') {
-            Write-Error "Hyper-V feature is not enabled on this host."
-          } else {
-            Write-Output "Hyper-V is enabled."
-          } # Closing brace added here
+          # Elevate the script to check Hyper-V feature
+          Start-Process -FilePath "powershell.exe" -ArgumentList "-Command `"& { 
+            $hv = Get-WindowsOptionalFeature -Online -FeatureName Microsoft-Hyper-V-All
+            if ($hv.State -ne 'Enabled') {
+              Write-Error 'Hyper-V feature is not enabled on this host.'
+            } else {
+              Write-Output 'Hyper-V is enabled.'
+            }
+          }`"" -Verb RunAs -Wait
 
       - name: Create and remove a temporary VM
         shell: pwsh
