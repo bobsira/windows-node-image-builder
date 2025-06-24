@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - main
+      - user/vhd_pipeline_automation
 
 jobs:
   build-vhd:
@@ -101,4 +102,18 @@ jobs:
           Start-Process -FilePath "powershell.exe" -ArgumentList "-Command `"& { 
             Write-Output 'Building VHD using Packer...'
             packer build -force -var-file='windows.auto.pkrvars.hcl' 'windows.json.pkr.hcl'
+          }`"" -Verb RunAs -Wait
+
+      - name: Log Packer Output
+        shell: pwsh
+        run: |
+          Start-Process -FilePath "powershell.exe" -ArgumentList "-Command `"& { 
+            Write-Output 'Logging Packer output directory...'
+            $outputDir = Get-ChildItem -Path './output' -Recurse
+            if ($outputDir) {
+              Write-Output 'Generated files:'
+              $outputDir | ForEach-Object { Write-Output $_.FullName }
+            } else {
+              Write-Output 'No output files found.'
+            }
           }`"" -Verb RunAs -Wait
