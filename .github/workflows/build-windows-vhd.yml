@@ -29,54 +29,42 @@ jobs:
           Write-Output "Runner OS: $env:RUNNER_OS"
           Write-Output "PowerShell version: $($PSVersionTable.PSVersion)"
 
-      - name: Ensure Hyper-V is enabled
+      - name: Ensure Hyper-V is enabled (Elevated)
         shell: pwsh
         run: |
-          $hv = Get-WindowsOptionalFeature -Online -FeatureName Microsoft-Hyper-V-All
-          if ($hv.State -ne 'Enabled') {
-            throw 'Hyper-V is not enabled.'
-          }
-          Write-Output 'Hyper-V is enabled.'
+          Start-Process pwsh -ArgumentList "-Command `"& {
+            `$hv = Get-WindowsOptionalFeature -Online -FeatureName Microsoft-Hyper-V-All
+            if (`$hv.State -ne 'Enabled') {
+              throw 'Hyper-V is not enabled.'
+            }
+            Write-Output 'Hyper-V is enabled.'
+          }`"" -Verb RunAs -Wait
 
-      - name: Install Chocolatey if needed
+      - name: Install Chocolatey, Packer, and Azure CLI (Elevated)
         shell: pwsh
         run: |
-          if (-not (Get-Command choco -ErrorAction SilentlyContinue)) {
-            Set-ExecutionPolicy Bypass -Scope Process -Force
-            [System.Net.ServicePointManager]::SecurityProtocol = [System.Net.ServicePointManager]::SecurityProtocol -bor 3072
-            Invoke-Expression ((New-Object System.Net.WebClient).DownloadString('https://community.chocolatey.org/install.ps1'))
-          } else {
-            Write-Output 'Chocolatey already installed.'
-          }
+          Start-Process pwsh -ArgumentList "-Command `"& {
+            if (-not (Get-Command choco -ErrorAction SilentlyContinue)) {
+              Set-ExecutionPolicy Bypass -Scope Process -Force
+              [System.Net.ServicePointManager]::SecurityProtocol = [System.Net.ServicePointManager]::SecurityProtocol -bor 3072
+              Invoke-Expression ((New-Object System.Net.WebClient).DownloadString('https://community.chocolatey.org/install.ps1'))
+            }
 
-      - name: Install Packer and Azure CLI
-        shell: pwsh
-        run: |
-          if (-not (Get-Command packer -ErrorAction SilentlyContinue)) {
-            choco install packer -y
-          }
-          if (-not (Get-Command az -ErrorAction SilentlyContinue)) {
-            choco install azure-cli -y
-          }
+            if (-not (Get-Command packer -ErrorAction SilentlyContinue)) {
+              choco install packer -y
+            }
 
-      - name: Initialize Packer plugins
+            if (-not (Get-Command az -ErrorAction SilentlyContinue)) {
+              choco install azure-cli -y
+            }
+          }`"" -Verb RunAs -Wait
+
+      - name: Initialize and Validate Packer
         shell: pwsh
         run: |
           packer plugins install github.com/hashicorp/hyperv
-
-      - name: Initialize Packer configuration
-        shell: pwsh
-        run: |
           packer init windows.json.pkr.hcl
-
-      - name: Format Packer configuration
-        shell: pwsh
-        run: |
           packer fmt -var-file='windows.auto.pkrvars.hcl' 'windows.json.pkr.hcl'
-
-      - name: Validate Packer configuration
-        shell: pwsh
-        run: |
           packer validate -var-file='windows.auto.pkrvars.hcl' 'windows.json.pkr.hcl'
 
       - name: Build VHD using Packer
@@ -86,7 +74,6 @@ jobs:
 
       - name: Locate generated VHD
         shell: pwsh
-        id: find_vhd
         run: |
           $vhdFile = Get-ChildItem -Path './output' -Filter '*.vhd*' -Recurse | Select-Object -First 1
           if ($null -eq $vhdFile) {
