@@ -27,7 +27,9 @@ jobs:
         shell: pwsh
         run: |
           echo "Runner OS: $env:RUNNER_OS"
+          Write-Host "Runner Architecture: $env:RUNNER_ARCH"
           echo "PowerShell version: $($PSVersionTable.PSVersion)"
+          Write-Host "Powershell version: $($PSVersionTable.PSEdition)"
 
       - name: Ensure Hyper-V is enabled (Elevated)
         shell: pwsh
