@@ -26,35 +26,43 @@ jobs:
       - name: Display runner info
         shell: pwsh
         run: |
-          Write-Output "Runner OS: $env:RUNNER_OS"
-          Write-Output "PowerShell version: $($PSVersionTable.PSVersion)"
+          echo "Runner OS: $env:RUNNER_OS"
+          echo "PowerShell version: $($PSVersionTable.PSVersion)"
 
       - name: Ensure Hyper-V is enabled (Elevated)
         shell: pwsh
         run: |
           Start-Process pwsh -ArgumentList "-Command `"& {
+            echo 'Checking if Hyper-V is enabled...'
             `$hv = Get-WindowsOptionalFeature -Online -FeatureName Microsoft-Hyper-V-All
             if (`$hv.State -ne 'Enabled') {
               throw 'Hyper-V is not enabled.'
             }
-            Write-Output 'Hyper-V is enabled.'
+            echo 'Hyper-V is enabled.'
           }`"" -Verb RunAs -Wait
 
       - name: Install Chocolatey, Packer, and Azure CLI (Elevated)
         shell: pwsh
         run: |
           Start-Process pwsh -ArgumentList "-Command `"& {
+            echo 'Checking and installing dependencies...'
             if (-not (Get-Command choco -ErrorAction SilentlyContinue)) {
+              echo 'Installing Chocolatey...'
               Set-ExecutionPolicy Bypass -Scope Process -Force
               [System.Net.ServicePointManager]::SecurityProtocol = [System.Net.ServicePointManager]::SecurityProtocol -bor 3072
               Invoke-Expression ((New-Object System.Net.WebClient).DownloadString('https://community.chocolatey.org/install.ps1'))
+              echo 'Chocolatey installed.'
+            } else {
+              echo 'Chocolatey already installed.'
             }
 
             if (-not (Get-Command packer -ErrorAction SilentlyContinue)) {
+              echo 'Installing Packer...'
               choco install packer -y
             }
 
             if (-not (Get-Command az -ErrorAction SilentlyContinue)) {
+              echo 'Installing Azure CLI...'
               choco install azure-cli -y
             }
           }`"" -Verb RunAs -Wait
@@ -62,29 +70,36 @@ jobs:
       - name: Initialize and Validate Packer
         shell: pwsh
         run: |
+          echo 'Installing Hyper-V plugin...'
           packer plugins install github.com/hashicorp/hyperv
+          echo 'Initializing Packer configuration...'
           packer init windows.json.pkr.hcl
+          echo 'Formatting Packer configuration...'
           packer fmt -var-file='windows.auto.pkrvars.hcl' 'windows.json.pkr.hcl'
+          echo 'Validating Packer configuration...'
           packer validate -var-file='windows.auto.pkrvars.hcl' 'windows.json.pkr.hcl'
 
       - name: Build VHD using Packer
         shell: pwsh
         run: |
+          echo 'Starting Packer build...'
           packer build -force -var-file='windows.auto.pkrvars.hcl' 'windows.json.pkr.hcl'
 
       - name: Locate generated VHD
         shell: pwsh
         run: |
+          echo 'Searching for generated VHD file...'
           $vhdFile = Get-ChildItem -Path './output' -Filter '*.vhd*' -Recurse | Select-Object -First 1
           if ($null -eq $vhdFile) {
             throw "No VHD file found."
           }
-          Write-Output "VHD_PATH=$($vhdFile.FullName)" | Out-File -FilePath $env:GITHUB_ENV -Append
-          Write-Output "Found VHD: $($vhdFile.FullName)"
+          echo "VHD_PATH=$($vhdFile.FullName)" | Out-File -FilePath $env:GITHUB_ENV -Append
+          echo "Found VHD: $($vhdFile.FullName)"
 
       - name: Upload VHD to Azure Blob Storage
         shell: pwsh
         run: |
+          echo "Uploading VHD to Azure Blob Storage..."
           az storage blob upload `
             --account-name $env:AZURE_STORAGE_ACCOUNT `
             --account-key $env:AZURE_STORAGE_KEY `
@@ -92,4 +107,4 @@ jobs:
             --file "$env:VHD_PATH" `
             --name (Split-Path -Path "$env:VHD_PATH" -Leaf) `
             --overwrite
-          Write-Output "Uploaded VHD: $(Split-Path -Path "$env:VHD_PATH" -Leaf)"
+          echo "Uploaded VHD: $(Split-Path -Path "$env:VHD_PATH" -Leaf)"
