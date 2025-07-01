@@ -72,8 +72,7 @@ jobs:
       - name: Initialize and Validate Packer
         shell: pwsh
         run: |
-          echo 'Installing Hyper-V plugin...'
-          packer plugins install github.com/hashicorp/hyperv
+          echo 'Installing Packer plugins...'
           echo 'Initializing Packer configuration...'
           packer init windows.json.pkr.hcl
           echo 'Formatting Packer configuration...'
