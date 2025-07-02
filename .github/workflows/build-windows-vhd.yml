@@ -53,7 +53,7 @@ jobs:
           $runnerUser = (whoami).Trim()
           echo "Adding '$runnerUser' to Hyper-V Administrators group..."
           Write-Host "Adding '$runnerUser' to Hyper-V Administrators group..."
-          Add-LocalGroupMember -Group "Hyper-V Administrators" -Member $runnerUser -ErrorAction Stop
+          # Add-LocalGroupMember -Group "Hyper-V Administrators" -Member $runnerUser -ErrorAction Stop
           echo "Current Hyper-V Administrators members:"
           Write-Host "Current Hyper-V Administrators members:"
           Get-LocalGroupMember -Group "Hyper-V Administrators" | ForEach-Object { echo $_.Name; Write-Host $_.Name }
