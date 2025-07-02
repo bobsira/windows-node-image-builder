@@ -120,9 +120,9 @@ jobs:
       - name: Locate generated VHD
         shell: pwsh
         run: |
-          echo "Searching for VHD in ./output…"
-          Write-Host "Searching for VHD in ./output…"
-          $vhd = Get-ChildItem -Path ./output -Filter *.vhd* -Recurse | Select-Object -First 1
+          echo "Searching for VHD in output directories..."
+          Write-Host "Searching for VHD in output directories..."
+          $vhd = Get-ChildItem -Path "./output*", "./output-*", "./output" -Include "*.vhd", "*.vhdx" -Recurse | Select-Object -First 1
           if (-not $vhd) {
             throw "No VHD file found in output directory!"
           }
