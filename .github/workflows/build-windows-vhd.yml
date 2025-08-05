@@ -5,6 +5,16 @@ on:
     branches:
       - main
       - user/vhd_pipeline_automation
+  workflow_dispatch:
+    inputs:
+      kubernetes_version:
+        description: 'Kubernetes version (optional, leave blank for latest)'
+        required: false
+        default: ''
+      windows_version:
+        description: 'Windows version (optional, leave blank for latest)'
+        required: false
+        default: ''
 
 jobs:
   build-upload-vhd:
@@ -112,6 +122,9 @@ jobs:
 
       - name: Build VHD with Packer
         shell: pwsh
+        env:
+          KUBERNETES_VERSION: ${{ inputs.kubernetes_version || '' }}
+          WINDOWS_VERSION:    ${{ inputs.windows_version    || '' }}
         run: |
           echo "Starting Packer build…"
           Write-Host "Starting Packer build…"

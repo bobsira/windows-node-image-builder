@@ -113,8 +113,8 @@ source "hyperv-iso" "windows-server" {
   disk_size                        = var.vm_disk_size
   skip_export                      = var.skip_export
   switch_name                      = var.switch_name
-  iso_checksum                     = var.win_checksum
-  iso_url                          = var.win_iso
+  iso_checksum                     = lookup( var.win_iso_checksums, var.windows_version)
+  iso_url                          = lookup( var.win_iso_urls, var.windows_version)
   generation                       = var.generation
   enable_secure_boot               = var.secure_boot
   guest_additions_mode             = var.guest_additions_mode
@@ -136,12 +136,18 @@ build {
   provisioner "powershell" {
     elevated_user     = var.winrm_username
     elevated_password = var.winrm_password
+    environment_vars  = [
+      "WINDOWS_VERSION=${var.windows_version}"
+    ]
     script            = "./setup/bootstrap.ps1"
   }
 
   provisioner "powershell" {
     elevated_user     = var.winrm_username
     elevated_password = var.winrm_password
+    environment_vars  = [
+      "KUBERNETES_VERSION=${var.kubernetes_version}"
+    ]
     script            = "./setup/configure-vm.ps1"
   }
 
