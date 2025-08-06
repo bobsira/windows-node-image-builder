@@ -45,6 +45,26 @@ variable "win_checksum" {
   description = "Windows Server ISO checksum"
 }
 
+variable "win_iso_checksums" {
+  type = map(string)
+  default = {}
+}
+
+variable "win_iso_urls" {
+  type = map(string)
+  default = {}
+}
+
+variable "windows_version" {
+  type = string
+  default = {}
+}
+
+variable "kubernetes_version" {
+  type = string
+  default = {}
+}
+
 variable "winrm_username" {
   type        = string
   description = "winrm username"
@@ -113,8 +133,8 @@ source "hyperv-iso" "windows-server" {
   disk_size                        = var.vm_disk_size
   skip_export                      = var.skip_export
   switch_name                      = var.switch_name
-  iso_checksum                     = lookup( var.win_iso_checksums, var.windows_version)
-  iso_url                          = lookup( var.win_iso_urls, var.windows_version)
+  iso_checksum                     = lookup( var.win_iso_checksums, var.windows_version, "")
+  iso_url                          = lookup( var.win_iso_urls, var.windows_version, "")
   generation                       = var.generation
   enable_secure_boot               = var.secure_boot
   guest_additions_mode             = var.guest_additions_mode
