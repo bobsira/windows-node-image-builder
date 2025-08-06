@@ -52,12 +52,12 @@ variable "win_iso_checksums" {
 
 variable "win_iso_urls" {
   type = map(string)
-  default = {}
+  default = ""
 }
 
 variable "windows_version" {
   type = string
-  default = {}
+  default = ""
 }
 
 variable "kubernetes_version" {
