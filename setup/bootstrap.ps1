@@ -96,4 +96,4 @@ try {
 }
 
 Write-Output "Phase 1 [END] - End of Phase 1"
-exit 0s
+exit 0

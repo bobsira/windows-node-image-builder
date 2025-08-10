@@ -36,24 +36,19 @@ jobs:
       - name: Display runner info
         shell: pwsh
         run: |
-          echo "Runner OS:        $env:RUNNER_OS"
           Write-Host "Runner OS:        $env:RUNNER_OS"
-          echo "Runner Labels:    $env:RUNNER_LABELS"
           Write-Host "Runner Labels:    $env:RUNNER_LABELS"
-          echo "PowerShell Ed.:   $($PSVersionTable.PSEdition) $($PSVersionTable.PSVersion)"
           Write-Host "PowerShell Ed.:   $($PSVersionTable.PSEdition) $($PSVersionTable.PSVersion)"
 
       - name: Ensure Hyper-V is enabled
         shell: pwsh
         run: |
           Start-Process pwsh -Verb RunAs -ArgumentList '-NoProfile -Command {
-            echo "Checking Hyper-V feature..."
             Write-Host "Checking Hyper-V feature..."
             $hv = Get-WindowsOptionalFeature -Online -FeatureName Microsoft-Hyper-V-All
             if ($hv.State -ne "Enabled") {
               throw "Hyper-V is not enabled on this host!"
             }
-            echo "Hyper-V is enabled."
             Write-Host "Hyper-V is enabled."
           }' -Wait
 
@@ -61,46 +56,37 @@ jobs:
         shell: pwsh
         run: |
           $runnerUser = (whoami).Trim()
-          echo "Adding '$runnerUser' to Hyper-V Administrators group..."
           Write-Host "Adding '$runnerUser' to Hyper-V Administrators group..."
           # Add-LocalGroupMember -Group "Hyper-V Administrators" -Member $runnerUser -ErrorAction Stop
-          echo "Current Hyper-V Administrators members:"
           Write-Host "Current Hyper-V Administrators members:"
-          Get-LocalGroupMember -Group "Hyper-V Administrators" | ForEach-Object { echo $_.Name; Write-Host $_.Name }
+          Get-LocalGroupMember -Group "Hyper-V Administrators" | ForEach-Object { Write-Host $_.Name }
 
       - name: Install Chocolatey, Packer & Azure CLI
         shell: pwsh
         run: |
           Start-Process pwsh -Verb RunAs -ArgumentList '-NoProfile -Command {
-            echo "Checking and installing dependencies…"
             Write-Host "Checking and installing dependencies…"
 
             if (-not (Get-Command choco -ErrorAction SilentlyContinue)) {
-              echo "Installing Chocolatey…"
               Write-Host "Installing Chocolatey…"
               Set-ExecutionPolicy Bypass -Scope Process -Force
               [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
               Invoke-Expression ((New-Object Net.WebClient).DownloadString("https://community.chocolatey.org/install.ps1"))
             } else {
-              echo "Chocolatey already present."
               Write-Host "Chocolatey already present."
             }
 
             if (-not (Get-Command packer -ErrorAction SilentlyContinue)) {
-              echo "Installing Packer…"
               Write-Host "Installing Packer…"
               choco install packer -y
             } else {
-              echo "Packer already present."
               Write-Host "Packer already present."
             }
 
             if (-not (Get-Command az -ErrorAction SilentlyContinue)) {
-              echo "Installing Azure CLI…"
               Write-Host "Installing Azure CLI…"
               choco install azure-cli -y
             } else {
-              echo "Azure CLI already present."
               Write-Host "Azure CLI already present."
             }
           }' -Wait
@@ -108,15 +94,12 @@ jobs:
       - name: Initialize & Validate Packer
         shell: pwsh
         run: |
-          echo "Initializing Packer…"
           Write-Host "Initializing Packer…"
           packer init windows.json.pkr.hcl
 
-          echo "Formatting…"
           Write-Host "Formatting…"
           packer fmt -var-file='windows.auto.pkrvars.hcl' windows.json.pkr.hcl
 
-          echo "Validating…"
           Write-Host "Validating…"
           packer validate -var-file='windows.auto.pkrvars.hcl' windows.json.pkr.hcl
 
@@ -126,27 +109,23 @@ jobs:
           KUBERNETES_VERSION: ${{ inputs.kubernetes_version || '' }}
           WINDOWS_VERSION:    ${{ inputs.windows_version    || '' }}
         run: |
-          echo "Starting Packer build…"
           Write-Host "Starting Packer build…"
           packer build -force -var-file='windows.auto.pkrvars.hcl' windows.json.pkr.hcl
 
       - name: Locate generated VHD
         shell: pwsh
         run: |
-          echo "Searching for VHD in output directories..."
           Write-Host "Searching for VHD in output directories..."
           $vhd = Get-ChildItem -Path "./output*", "./output-*", "./output" -Include "*.vhd", "*.vhdx" -Recurse | Select-Object -First 1
           if (-not $vhd) {
             throw "No VHD file found in output directory!"
           }
-          echo "Found VHD: $($vhd.FullName)"
           Write-Host "Found VHD: $($vhd.FullName)"
           echo "VHD_PATH=$($vhd.FullName)" | Out-File -FilePath $env:GITHUB_ENV -Append
 
       - name: Upload VHD to Azure Blob Storage
         shell: pwsh
         run: |
-          echo "Uploading $env:VHD_PATH to blob container '$env:AZURE_CONTAINER_NAME'…"
           Write-Host "Uploading $env:VHD_PATH to blob container '$env:AZURE_CONTAINER_NAME'…"
           az storage blob upload `
             --account-name $env:AZURE_STORAGE_ACCOUNT `
@@ -155,5 +134,4 @@ jobs:
             --file         $env:VHD_PATH `
             --name         (Split-Path $env:VHD_PATH -Leaf) `
             --overwrite
-          echo "Upload complete."
           Write-Host "Upload complete."
