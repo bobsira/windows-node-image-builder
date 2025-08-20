@@ -1,5 +1,15 @@
 $envPathRegKey = "HKLM:\SYSTEM\CurrentControlSet\Control\Session Manager\Environment"
 
+if ($env:KUBERNETES_VERSION -and $env:KUBERNETES_VERSION.Trim()) {
+    $kubernetes_ver = $env:KUBERNETES_VERSION.TrimStart('v')
+    Write-Output "Using Kubernetes version from environment: $kubernetes_ver"
+} else {
+    Write-Output "KUBERNETES_VERSION environment variable not set. Fetching latest version..."
+    $kubernetes_ver = Get-k8LatestVersion
+    $kubernetes_ver = $kubernetes_ver.TrimStart('v')
+    Write-Output "Using latest Kubernetes version: $kubernetes_ver"
+}
+
 function Get-LatestToolVersion($repository) {
     try {
         $uri = "https://api.github.com/repos/$repository/releases/latest"
@@ -302,10 +312,6 @@ function Install-Kubelet {
         $KubernetesVersion
     )
 
-    $KubernetesVersion = Get-k8LatestVersion
-    Write-Output "* The latest Kubernetes version is $KubernetesVersion"
-    $KubernetesVersion = $KubernetesVersion.TrimStart('v')
-
     # Check if kubelet service is already installed
     $nssmService = Get-WmiObject win32_service | Where-Object {$_.PathName -like '*nssm*'}
     if ($nssmService.Name -eq 'kubelet') {
@@ -401,7 +407,7 @@ Write-Output "Phase 4 [Installing NSSM] ..."
 Install-NSSM
 
 Write-Output "Phase 5 [Installing Kubelet] ..."
-Install-Kubelet
+Install-Kubelet -KubernetesVersion $kubernetes_ver
 
 Write-Output "Phase 6 [Setting Port] ..."
 Set-Port
