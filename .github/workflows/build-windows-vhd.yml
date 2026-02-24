@@ -15,6 +15,10 @@ on:
         description: 'Windows version (optional, leave blank for latest)'
         required: false
         default: ''
+      containerd_version:
+        description: 'Containerd version (optional, leave blank to use var-file)'
+        required: false
+        default: ''
 
 jobs:
   build-upload-vhd:
@@ -98,7 +102,7 @@ jobs:
           packer init windows.json.pkr.hcl
 
           Write-Host "Formatting…"
-          packer fmt -var-file='windows.auto.pkrvars.hcl' windows.json.pkr.hcl
+          packer fmt --var-file=./windows.auto.pkrvars.hcl windows.json.pkr.hcl
 
           Write-Host "Validating…"
           packer validate -var-file='windows.auto.pkrvars.hcl' windows.json.pkr.hcl
@@ -108,9 +112,24 @@ jobs:
         env:
           KUBERNETES_VERSION: ${{ inputs.kubernetes_version || '' }}
           WINDOWS_VERSION:    ${{ inputs.windows_version    || '' }}
+          CONTAINERD_VERSION: ${{ inputs.containerd_version    || '' }}
         run: |
-          Write-Host "Starting Packer build…"
-          packer build -force -var-file='windows.auto.pkrvars.hcl' windows.json.pkr.hcl
+            $k = $env:KUBERNETES_VERSION
+            $w = $env:WINDOWS_VERSION
+            $c = $env:CONTAINERD_VERSION
+            $extra = ''
+
+            if ($k -and $k -ne '') { $extra += "-var \"kubernetes_version=$k\" " }
+            if ($w -and $w -ne '') { $extra += "-var \"windows_version=$w\" " }
+            if ($c -and $c -ne '') { $extra += "-var \"containerd_version=$c\" " }
+
+            Write-Host "Starting Packer build…"
+            if ($extra -ne '') {
+              Write-Host "Passing extra vars to Packer: $extra"
+              packer build -force --var-file=./windows.auto.pkrvars.hcl $extra windows.json.pkr.hcl
+            } else {
+              packer build -force --var-file=./windows.auto.pkrvars.hcl windows.json.pkr.hcl
+            }
 
       - name: Locate generated VHD
         shell: pwsh

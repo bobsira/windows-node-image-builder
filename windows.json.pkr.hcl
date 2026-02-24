@@ -46,22 +46,27 @@ variable "win_checksum" {
 }
 
 variable "win_iso_checksums" {
-  type = map(string)
+  type    = map(string)
   default = {}
 }
 
 variable "win_iso_urls" {
-  type = map(string)
+  type    = map(string)
   default = {}
 }
 
 variable "windows_version" {
-  type = string
+  type    = string
   default = ""
 }
 
 variable "kubernetes_version" {
-  type = string
+  type    = string
+  default = ""
+}
+
+variable "containerd_version" {
+  type    = string
   default = ""
 }
 
@@ -125,69 +130,107 @@ source "hyperv-iso" "windows-server" {
   boot_command = ["a<enter><wait>"]
   boot_wait    = "2s"
 
-  secondary_iso_images              = ["./setup/auto-install.iso"]
-  vm_name                          = var.vm_name
-  cpus                             = var.vm_cpus
-  memory                           = var.vm_memory
-  enable_dynamic_memory            = var.dynamic_memory
-  disk_size                        = var.vm_disk_size
-  skip_export                      = var.skip_export
-  switch_name                      = var.switch_name
-  iso_checksum                     = lookup( var.win_iso_checksums, var.windows_version, "")
-  iso_url                          = lookup( var.win_iso_urls, var.windows_version, "")
-  generation                       = var.generation
-  enable_secure_boot               = var.secure_boot
-  guest_additions_mode             = var.guest_additions_mode
+  vm_name               = var.vm_name
+  cpus                  = var.vm_cpus
+  memory                = var.vm_memory
+  enable_dynamic_memory = var.dynamic_memory
+  disk_size             = var.vm_disk_size
+  skip_export           = var.skip_export
+  switch_name           = var.switch_name
+  iso_checksum          = lookup(var.win_iso_checksums, var.windows_version, "")
+  iso_url               = lookup(var.win_iso_urls, var.windows_version, "")
+  generation            = var.generation
+  enable_secure_boot    = var.secure_boot
+  guest_additions_mode  = var.guest_additions_mode
 
-  
+
   communicator     = "winrm"
   winrm_port       = "5985"
   winrm_username   = var.winrm_username
   winrm_password   = var.winrm_password
   winrm_timeout    = "12h"
   shutdown_command = "shutdown /s /t 10 /f"
-  cd_files         = ["./setup/*"]
-  cd_label         = "scripts"
+  cd_files         = ["./setup", "./setup/*"]
 }
 
 build {
   sources = ["source.hyperv-iso.windows-server"]
 
   provisioner "powershell" {
-    elevated_user     = var.winrm_username
-    elevated_password = var.winrm_password
-    environment_vars  = [
-      "WINDOWS_VERSION=${var.windows_version}"
+    inline = [
+      "Write-Output 'PACKER: Step 0/6 - starting Containers feature installation'",
+      "Install-WindowsFeature -Name containers",
+      "Write-Output 'PACKER: Step 0/6 - completed Containers feature installation'"
     ]
-    script            = "./setup/bootstrap.ps1"
+  }
+
+  provisioner "windows-restart" {
+    restart_timeout = "15m"
+  }
+
+
+  provisioner "powershell" {
+    inline = [
+      "Write-Output 'PACKER: Step 1/6 - about to run ./setup/bootstrap.ps1'"
+    ]
   }
 
   provisioner "powershell" {
     elevated_user     = var.winrm_username
     elevated_password = var.winrm_password
-    environment_vars  = [
-      "KUBERNETES_VERSION=${var.kubernetes_version}"
+    environment_vars = [
+      "WINDOWS_VERSION=${var.windows_version}"
     ]
-    script            = "./setup/configure-vm.ps1"
+    script = "./setup/bootstrap.ps1"
+  }
+
+  provisioner "powershell" {
+    inline = [
+      "Write-Output 'PACKER: Step 2/6 - about to run ./setup/configure-vm.ps1'"
+    ]
+  }
+
+  provisioner "powershell" {
+    elevated_user     = var.winrm_username
+    elevated_password = var.winrm_password
+    environment_vars = [
+      "KUBERNETES_VERSION=${var.kubernetes_version}",
+      "CONTAINERD_VERSION=${var.containerd_version}"
+    ]
+    script = "./setup/configure-vm.ps1"
   }
 
   provisioner "windows-update" {
-     search_criteria = "IsInstalled=0"
-     filters = [
-       "exclude:$_.Title -like '*Preview*'",
-       "include:$true",
-     ]
-     update_limit = 25
-   }
+    search_criteria = "IsInstalled=0"
+    filters = [
+      "exclude:$_.Title -like '*Preview*'",
+      "include:$true",
+    ]
+    update_limit = 25
+  }
 
   provisioner "windows-restart" {
+    # marker for logs
+    # PACKER: Step 4/6 - restarting the VM for updates
     restart_timeout = "1h"
+  }
+
+  provisioner "powershell" {
+    inline = [
+      "Write-Output 'PACKER: Step 5/6 - running ./setup/disable-autolog.ps1'"
+    ]
   }
 
   provisioner "powershell" {
     elevated_user     = var.winrm_username
     elevated_password = var.winrm_password
     scripts           = ["./setup/disable-autolog.ps1"]
+  }
+
+  provisioner "powershell" {
+    inline = [
+      "Write-Output 'PACKER: Step 6/6 - running ./setup/enable-ssh.ps1'"
+    ]
   }
 
   provisioner "powershell" {
