@@ -158,9 +158,9 @@ build {
 
   provisioner "powershell" {
     inline = [
-      "Write-Output 'PACKER: Step 0/6 - starting Containers feature installation'",
+      "Write-Output 'PACKER: Step 1/7 - starting Containers feature installation'",
       "Install-WindowsFeature -Name containers",
-      "Write-Output 'PACKER: Step 0/6 - completed Containers feature installation'"
+      "Write-Output 'PACKER: Step 1/7 - completed Containers feature installation'"
     ]
   }
 
@@ -171,7 +171,7 @@ build {
 
   provisioner "powershell" {
     inline = [
-      "Write-Output 'PACKER: Step 1/6 - about to run ./setup/bootstrap.ps1'"
+      "Write-Output 'PACKER: Step 2/7 - about to run ./setup/bootstrap.ps1'"
     ]
   }
 
@@ -186,7 +186,7 @@ build {
 
   provisioner "powershell" {
     inline = [
-      "Write-Output 'PACKER: Step 2/6 - about to run ./setup/configure-vm.ps1'"
+      "Write-Output 'PACKER: Step 3/7 - about to run ./setup/configure-vm.ps1'"
     ]
   }
 
@@ -211,13 +211,13 @@ build {
 
   provisioner "windows-restart" {
     # marker for logs
-    # PACKER: Step 4/6 - restarting the VM for updates
+    # PACKER: Step 4/7 - restarting the VM for updates
     restart_timeout = "1h"
   }
 
   provisioner "powershell" {
     inline = [
-      "Write-Output 'PACKER: Step 5/6 - running ./setup/disable-autolog.ps1'"
+      "Write-Output 'PACKER: Step 5/7 - running ./setup/disable-autolog.ps1'"
     ]
   }
 
@@ -229,7 +229,7 @@ build {
 
   provisioner "powershell" {
     inline = [
-      "Write-Output 'PACKER: Step 6/6 - running ./setup/enable-ssh.ps1'"
+      "Write-Output 'PACKER: Step 6/7 - running ./setup/enable-ssh.ps1'"
     ]
   }
 
@@ -237,5 +237,17 @@ build {
     elevated_user     = var.winrm_username
     elevated_password = var.winrm_password
     scripts           = ["./setup/enable-ssh.ps1"]
+  }
+
+  provisioner "powershell" {
+    inline = [
+      "Write-Output 'PACKER: Step 7/7 - running ./setup/vhd-mount.ps1 on the Packer host'"
+    ]
+  }
+
+  provisioner "powershell" {
+    elevated_user     = var.winrm_username
+    elevated_password = var.winrm_password
+    scripts           = ["./setup/vhd-mount.ps1"]
   }
 }
