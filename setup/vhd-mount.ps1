@@ -9,8 +9,43 @@ function Write-Log { param($m) Write-Host "[vhd-mount] $m" }
 
 Write-Log "Looking for VHD: $vhdPath"
 if (-not (Test-Path -Path $vhdPath)) {
-    Write-Error "VHD not found: $vhdPath"
-    exit 1
+    Write-Log "Primary path not found; searching output directories (output*, output-*, output) for .vhd/.vhdx files..."
+
+    function Find-GeneratedVhd {
+        param(
+            [string]$baseDir
+        )
+        $searchPatterns = @("$baseDir\output*", "$baseDir\output-*", "$baseDir\output")
+        foreach ($pattern in $searchPatterns) {
+            try {
+                $found = Get-ChildItem -Path $pattern -Include "*.vhd","*.vhdx" -Recurse -ErrorAction SilentlyContinue | Select-Object -First 1
+                if ($found) { return $found.FullName }
+            } catch {
+                # ignore and continue
+            }
+        }
+        return $null
+    }
+
+    # Try script root, then its parent directories (keeps script generic for local and CI use)
+    $found = Find-GeneratedVhd -baseDir $PSScriptRoot
+    if (-not $found) {
+        $parent = Split-Path -Path $PSScriptRoot -Parent
+        while ($parent -and -not $found) {
+            $found = Find-GeneratedVhd -baseDir $parent
+            if ($found) { break }
+            $next = Split-Path -Path $parent -Parent
+            if ($next -and $next -ne $parent) { $parent = $next } else { break }
+        }
+    }
+
+    if (-not $found) {
+        Write-Error "VHD not found: $vhdPath"
+        exit 1
+    }
+
+    $vhdPath = $found
+    Write-Log "Found VHD: $vhdPath"
 }
 
 try {
