@@ -32,6 +32,8 @@ jobs:
       AZURE_STORAGE_ACCOUNT: ${{ secrets.AZURE_STORAGE_ACCOUNT }}
       AZURE_STORAGE_KEY:     ${{ secrets.AZURE_STORAGE_KEY }}
       AZURE_CONTAINER_NAME:  ${{ secrets.AZURE_STORAGE_CONTAINER }}
+      PACKER_LOG: '1'
+      PACKER_LOG_PATH: ${{ github.workspace }}\packer.log
 
     steps:
       - name: Checkout repository
@@ -123,13 +125,19 @@ jobs:
             if ($w -and $w -ne '') { $extra += ('-var "windows_version={0}" ' -f $w) }
             if ($c -and $c -ne '') { $extra += ('-var "containerd_version={0}" ' -f $c) }
 
+            $log = Join-Path $PWD 'packer.log'
+            $env:PACKER_LOG = '1'
+            $env:PACKER_LOG_PATH = $log
+
             Write-Host "Starting Packer build…"
             if ($extra -ne '') {
               Write-Host "Passing extra vars to Packer: $extra"
-              packer build -force --var-file=./windows.auto.pkrvars.hcl $extra windows.json.pkr.hcl
+              $cmd = "packer build -force --var-file=./windows.auto.pkrvars.hcl $extra windows.json.pkr.hcl"
             } else {
-              packer build -force --var-file=./windows.auto.pkrvars.hcl windows.json.pkr.hcl
+              $cmd = "packer build -force --var-file=./windows.auto.pkrvars.hcl windows.json.pkr.hcl"
             }
+            Write-Host "Running: $cmd"
+            iex "$cmd 2>&1 | Tee-Object -FilePath '$log'"
 
       - name: Locate generated VHD
         shell: powershell
@@ -142,11 +150,19 @@ jobs:
           Write-Host "Found VHD: $($vhd.FullName)"
           echo "VHD_PATH=$($vhd.FullName)" | Out-File -FilePath $env:GITHUB_ENV -Append
 
+      - name: Upload Packer log
+        uses: actions/upload-artifact@v4
+        with:
+          name: packer-log
+          path: packer.log
+
       - name: Upload VHD to Azure Blob Storage
         shell: powershell
         run: |
           Write-Host "Uploading $env:VHD_PATH to blob container '$env:AZURE_CONTAINER_NAME'…"
           az storage blob upload `
+            --only-show-errors `
+            --no-progress `
             --account-name $env:AZURE_STORAGE_ACCOUNT `
             --account-key  $env:AZURE_STORAGE_KEY `
             --container-name $env:AZURE_CONTAINER_NAME `
