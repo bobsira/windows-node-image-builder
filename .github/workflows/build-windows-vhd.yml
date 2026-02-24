@@ -119,25 +119,17 @@ jobs:
             $k = $env:KUBERNETES_VERSION
             $w = $env:WINDOWS_VERSION
             $c = $env:CONTAINERD_VERSION
-            $args = @('build','-force','--var-file=./windows.auto.pkrvars.hcl')
-
-            if ($k) { $args += ('-var'); $args += ("kubernetes_version=$k") }
-            if ($w) { $args += ('-var'); $args += ("windows_version=$w") }
-            if ($c) { $args += ('-var'); $args += ("containerd_version=$c") }
-
-            $log = Join-Path $PWD 'packer.log'
-            $env:PACKER_LOG = '1'
-            $env:PACKER_LOG_PATH = $log
-
+            $extra = ''
+            if ($k -and $k -ne '') { $extra += ('-var "kubernetes_version={0}" ' -f $k) }
+            if ($w -and $w -ne '') { $extra += ('-var "windows_version={0}" ' -f $w) }
+            if ($c -and $c -ne '') { $extra += ('-var "containerd_version={0}" ' -f $c) }
             Write-Host "Starting Packer build…"
-            Write-Host "Running Packer (output redirected to packer.log)"
-
-            # run packer and write all output only to packer.log (use cmd.exe to ensure redirection)
-            $argString = $args -join ' '
-            $redirectCmd = 'packer ' + $argString + ' > "' + $log + '" 2>&1'
-            Start-Process -FilePath 'cmd.exe' -ArgumentList '/c', $redirectCmd -NoNewWindow -Wait
-
-            Write-Host "Packer finished; log written to $log"
+            if ($extra -ne '') {
+              Write-Host "Passing extra vars to Packer: $extra"
+              packer build -force --var-file=./windows.auto.pkrvars.hcl $extra windows.json.pkr.hcl
+            } else {
+              packer build -force --var-file=./windows.auto.pkrvars.hcl windows.json.pkr.hcl
+            }
 
       - name: Locate generated VHD
         shell: powershell
