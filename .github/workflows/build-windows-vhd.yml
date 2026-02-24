@@ -119,9 +119,9 @@ jobs:
             $c = $env:CONTAINERD_VERSION
             $extra = ''
 
-            if ($k -and $k -ne '') { $extra += "-var \"kubernetes_version=$k\" " }
-            if ($w -and $w -ne '') { $extra += "-var \"windows_version=$w\" " }
-            if ($c -and $c -ne '') { $extra += "-var \"containerd_version=$c\" " }
+            if ($k -and $k -ne '') { $extra += ('-var "kubernetes_version={0}" ' -f $k) }
+            if ($w -and $w -ne '') { $extra += ('-var "windows_version={0}" ' -f $w) }
+            if ($c -and $c -ne '') { $extra += ('-var "containerd_version={0}" ' -f $c) }
 
             Write-Host "Starting Packer build…"
             if ($extra -ne '') {
