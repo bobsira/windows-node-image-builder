@@ -116,7 +116,7 @@ jobs:
           WINDOWS_VERSION:    ${{ inputs.windows_version    || '' }}
           CONTAINERD_VERSION: ${{ inputs.containerd_version    || '' }}
         run: |
-            k = $env:KUBERNETES_VERSION
+            $k = $env:KUBERNETES_VERSION
             $w = $env:WINDOWS_VERSION
             $c = $env:CONTAINERD_VERSION
             $args = @('build','-force','--var-file=./windows.auto.pkrvars.hcl')
@@ -130,10 +130,12 @@ jobs:
             $env:PACKER_LOG_PATH = $log
 
             Write-Host "Starting Packer build…"
-            Write-Host "Running: packer $($args -join ' ')"
+            Write-Host "Running Packer (output redirected to packer.log)"
 
-            # run packer and write all output only to packer.log
-            Start-Process -FilePath 'packer' -ArgumentList $args -NoNewWindow -Wait -RedirectStandardOutput $log -RedirectStandardError $log
+            # run packer and write all output only to packer.log (use cmd.exe to ensure redirection)
+            $argString = $args -join ' '
+            $redirectCmd = "packer $argString > \"$log\" 2>&1"
+            Start-Process -FilePath 'cmd.exe' -ArgumentList '/c', $redirectCmd -NoNewWindow -Wait
 
             Write-Host "Packer finished; log written to $log"
 
