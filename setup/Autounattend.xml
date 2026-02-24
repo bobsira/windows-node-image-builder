@@ -74,7 +74,7 @@
                     <InstallFrom>
                         <!-- Get-WindowsImage -ImagePath D:\sources\install.wim -->
                         <MetaData wcm:action="add">
-                            <Key>/IMAGE/INDEX </Key>
+                            <Key>/IMAGE/INDEX</Key>
                             <Value>3</Value>
                         </MetaData>
                     </InstallFrom>
