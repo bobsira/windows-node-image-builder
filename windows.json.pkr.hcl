@@ -238,16 +238,4 @@ build {
     elevated_password = var.winrm_password
     scripts           = ["./setup/enable-ssh.ps1"]
   }
-
-  provisioner "powershell" {
-    inline = [
-      "Write-Output 'PACKER: Step 7/7 - running ./setup/vhd-mount.ps1 on the Packer host'"
-    ]
-  }
-
-  provisioner "powershell" {
-    elevated_user     = var.winrm_username
-    elevated_password = var.winrm_password
-    scripts           = ["./setup/vhd-mount.ps1"]
-  }
 }
