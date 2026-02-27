@@ -58,14 +58,14 @@ jobs:
             Write-Host "Hyper-V is enabled."
           }' -Wait
 
-      - name: Grant Hyper-V Administrators group membership
-        shell: powershell
-        run: |
-          $runnerUser = (whoami).Trim()
-          Write-Host "Adding '$runnerUser' to Hyper-V Administrators group..."
-          Add-LocalGroupMember -Group "Hyper-V Administrators" -Member $runnerUser -ErrorAction Stop
-          Write-Host "Current Hyper-V Administrators members:"
-          Get-LocalGroupMember -Group "Hyper-V Administrators" | ForEach-Object { Write-Host $_.Name }
+      # - name: Grant Hyper-V Administrators group membership
+      #   shell: powershell
+      #   run: |
+      #     $runnerUser = (whoami).Trim()
+      #     Write-Host "Adding '$runnerUser' to Hyper-V Administrators group..."
+      #     Add-LocalGroupMember -Group "Hyper-V Administrators" -Member $runnerUser -ErrorAction Stop
+      #     Write-Host "Current Hyper-V Administrators members:"
+      #     Get-LocalGroupMember -Group "Hyper-V Administrators" | ForEach-Object { Write-Host $_.Name }
 
       - name: Install Chocolatey, Packer & Azure CLI
         shell: powershell
