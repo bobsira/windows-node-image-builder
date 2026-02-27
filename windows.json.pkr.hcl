@@ -35,16 +35,6 @@ variable "vm_memory" {
   description = "VM Memory"
 }
 
-variable "win_iso" {
-  type        = string
-  description = "Windows Server ISO location"
-}
-
-variable "win_checksum" {
-  type        = string
-  description = "Windows Server ISO checksum"
-}
-
 variable "win_iso_checksums" {
   type    = map(string)
   default = {}

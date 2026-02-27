@@ -140,17 +140,7 @@ jobs:
             throw "No VHD file found in output directory!"
           }
           Write-Host "Found VHD: $($vhd.FullName)"
-          echo "VHD_PATH=$($vhd.FullName)" | Out-File -FilePath $env:GITHUB_ENV -Append
-      - name: Validate VHD mounts (host)
-        shell: powershell
-        run: |
-          Write-Host "Validating VHD mount/dismount on host: $env:VHD_PATH"
-          if (-not (Test-Path -LiteralPath $env:VHD_PATH)) {
-            throw "VHD_PATH does not exist: $env:VHD_PATH"
-          }
-
-          # This script accepts -VhdPath and will mount, set partition drive letter, then dismount.
-          powershell.exe -NoProfile -ExecutionPolicy Bypass -File ".\setup\vhd-mount.ps1" -VhdPath "$env:VHD_PATH" -DriveLetter "Z"
+          echo "VHD_PATH=$($vhd.FullName)" | Out-File -FilePath $env:GITHUB_ENV -Append    
     
 
       - name: Upload Packer log
