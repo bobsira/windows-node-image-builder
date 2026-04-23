@@ -23,7 +23,7 @@ winrm_password = "password"
 
 kubernetes_version = "v1.35.0"
 windows_version    = "2025"
-containerd_version = "1.7.25"
+containerd_version = "2.2.3"
 
 
 win_iso_urls = {

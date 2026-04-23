@@ -211,35 +211,25 @@ function Initialize-ContainerdService {
     # Read the content of the config.toml file
     $containerdConfigContent = Get-Content -Path $containerdConfigFile -Raw
 
-    # Define the replacements
-    $replacements = @(
-        @{
-            Find = 'bin_dir = "C:\\Program Files\\containerd\\cni\\bin"'
-            Replace = 'bin_dir = "c:\\opt\\cni\\bin"'
-        },
-        @{
-            Find = 'conf_dir = "C:\\Program Files\\containerd\\cni\\conf"'
-            Replace = 'conf_dir = "c:\\etc\\cni\\net.d\\"'
-          }
-    )
-
-    # Perform the check and replacement in one loop
-    $replacementsMade = $false
-    foreach($replacement in $replacements) {
-        if ($containerdConfigContent -match [regex]::Escape($replacement.Find)) {
-            $containerdConfigContent = $containerdConfigContent -replace [regex]::Escape($replacement.Find), $replacement.Replace
-            $replacementsMade = $true
+    # Use the already-resolved $containerd_ver to pick the right config.toml key/quote format
+    $containerdMajor = [int]($containerd_ver -split '\.')[0]
+    if ($containerdMajor -ge 2) {
+        # containerd 2.x: bin_dirs (array, single quotes)
+        $containerdConfigContent = $containerdConfigContent -replace "bin_dirs\s*=\s*\['[^']*'\]", "bin_dirs = ['c:\opt\cni\bin']"
+        if ($containerdConfigContent -notmatch "conf_dir\s*=\s*'[^']*containerd[^']*cni[^']*'") {
+            Throw "containerd 2.x: conf_dir CNI pattern not found in config.toml."
         }
+        $containerdConfigContent = $containerdConfigContent -replace "conf_dir\s*=\s*'[^']*containerd[^']*cni[^']*'", "conf_dir = 'c:\etc\cni\net.d'"
+    } else {
+        # containerd 1.x: bin_dir (double quotes)
+        $containerdConfigContent = $containerdConfigContent -replace 'bin_dir\s*=\s*"[^"]*\\cni\\[^"]*"', 'bin_dir = "c:\\opt\\cni\\bin"'
+        if ($containerdConfigContent -notmatch 'conf_dir\s*=\s*"[^"]*containerd[^"]*cni[^"]*"') {
+            Throw "containerd 1.x: conf_dir CNI pattern not found in config.toml."
+        }
+        $containerdConfigContent = $containerdConfigContent -replace 'conf_dir\s*=\s*"[^"]*containerd[^"]*cni[^"]*"', 'conf_dir = "c:\\etc\\cni\\net.d\\"'
     }
 
-    # Write the modified content back to the config.toml file if any replacements were made
-    if ($replacementsMade) {
-        $containerdConfigContent | Set-Content -Path $containerdConfigFile
-        # Output a message indicating the changes
-        # Write-Host "Changes applied to $containerdConfigFile"
-        } else {
-        # Write-Host "No changes needed in $containerdConfigFile"
-    }
+    $containerdConfigContent | Set-Content -Path $containerdConfigFile
 
      # Create the folders if they do not exist
     $binDir = "c:\opt\cni\bin"
