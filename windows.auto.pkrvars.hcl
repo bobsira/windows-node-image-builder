@@ -21,7 +21,7 @@ winrm_username = "Administrator"
 winrm_password = "password"
 
 
-kubernetes_version = "v1.35.0"
+kubernetes_version = "v1.37.0"
 windows_version    = "2025"
 containerd_version = "2.2.3"
 

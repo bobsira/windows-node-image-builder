@@ -40,10 +40,10 @@ packer build -force -var-file="windows.auto.pkrvars.hcl" "windows.json.pkr.hcl"
 ```
 
 To override versions locally:
-Add -var 'windows_version=2022' -var 'kubernetes_version=v1.35.0' -var 'containerd_version=1.7.25' (or your desired values) to your Packer commands:
+Add -var 'windows_version=2022' -var 'kubernetes_version=v1.37.0' -var 'containerd_version=1.7.25' (or your desired values) to your Packer commands:
 
 ```powershell
-packer build -force -var-file="windows.auto.pkrvars.hcl" -var 'windows_version=2022' -var 'kubernetes_version=v1.35.0' -var 'containerd_version=1.7.25' "windows.json.pkr.hcl"
+packer build -force -var-file="windows.auto.pkrvars.hcl" -var 'windows_version=2022' -var 'kubernetes_version=v1.37.0' -var 'containerd_version=1.7.25' "windows.json.pkr.hcl"
 ```
 
 ### Default password
