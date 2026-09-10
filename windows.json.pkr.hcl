@@ -60,26 +60,6 @@ variable "containerd_version" {
   default = ""
 }
 
-variable "win_iso_checksums" {
-  type = map(string)
-  default = {}
-}
-
-variable "win_iso_urls" {
-  type = map(string)
-  default = {}
-}
-
-variable "windows_version" {
-  type = string
-  default = ""
-}
-
-variable "kubernetes_version" {
-  type = string
-  default = ""
-}
-
 variable "winrm_username" {
   type        = string
   description = "winrm username"
