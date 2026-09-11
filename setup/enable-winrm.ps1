@@ -13,7 +13,7 @@ function Write-Log {
         [ValidateSet('INFO','WARN','ERROR')][string]$Level = 'INFO'
     )
     $line = "[$Level] $Message"
-    if ($Level -eq 'ERROR') { Write-Error $line } elseif ($Level -eq 'WARN') { Write-Warning $line } else { Write-Host $line }
+    if ($Level -eq 'ERROR') { Write-Error $line -ErrorAction Continue } elseif ($Level -eq 'WARN') { Write-Warning $line } else { Write-Host $line }
 }
 
 function Invoke-Step {

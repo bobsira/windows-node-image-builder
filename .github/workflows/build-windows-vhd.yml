@@ -8,11 +8,11 @@ on:
   workflow_dispatch:
     inputs:
       kubernetes_version:
-        description: 'Kubernetes version (optional, leave blank for latest)'
+        description: 'Kubernetes version (optional, leave blank to use var-file)'
         required: false
         default: ''
       windows_version:
-        description: 'Windows version (optional, leave blank for latest)'
+        description: 'Windows version (optional, leave blank to use var-file)'
         required: false
         default: ''
       containerd_version:
@@ -119,17 +119,15 @@ jobs:
             $k = $env:KUBERNETES_VERSION
             $w = $env:WINDOWS_VERSION
             $c = $env:CONTAINERD_VERSION
-            $extra = ''
-            if ($k -and $k -ne '') { $extra += ('-var "kubernetes_version={0}" ' -f $k) }
-            if ($w -and $w -ne '') { $extra += ('-var "windows_version={0}" ' -f $w) }
-            if ($c -and $c -ne '') { $extra += ('-var "containerd_version={0}" ' -f $c) }
+            $extra = @()
+            if ($k -and $k -ne '') { $extra += @('-var', "kubernetes_version=$k") }
+            if ($w -and $w -ne '') { $extra += @('-var', "windows_version=$w") }
+            if ($c -and $c -ne '') { $extra += @('-var', "containerd_version=$c") }
             Write-Host "Starting Packer build…"
-            if ($extra -ne '') {
+            if ($extra.Count -gt 0) {
               Write-Host "Passing extra vars to Packer: $extra"
-              packer build -force --var-file=./windows.auto.pkrvars.hcl $extra windows.json.pkr.hcl
-            } else {
-              packer build -force --var-file=./windows.auto.pkrvars.hcl windows.json.pkr.hcl
             }
+            packer build -force -on-error=abort --var-file=./windows.auto.pkrvars.hcl @extra windows.json.pkr.hcl
 
       - name: Locate generated VHD
         shell: powershell
@@ -144,10 +142,12 @@ jobs:
     
 
       - name: Upload Packer log
+        if: always()
         uses: actions/upload-artifact@v4
         with:
           name: packer-log
           path: packer.log
+          if-no-files-found: warn
 
       - name: Upload VHD to Azure Blob Storage
         shell: powershell

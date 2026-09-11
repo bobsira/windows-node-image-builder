@@ -215,6 +215,9 @@ function Initialize-ContainerdService {
     $containerdMajor = [int]($containerd_ver -split '\.')[0]
     if ($containerdMajor -ge 2) {
         # containerd 2.x: bin_dirs (array, single quotes)
+        if ($containerdConfigContent -notmatch "bin_dirs\s*=\s*\['[^']*'\]") {
+            Throw "containerd 2.x: bin_dirs CNI pattern not found in config.toml."
+        }
         $containerdConfigContent = $containerdConfigContent -replace "bin_dirs\s*=\s*\['[^']*'\]", "bin_dirs = ['c:\opt\cni\bin']"
         if ($containerdConfigContent -notmatch "conf_dir\s*=\s*'[^']*containerd[^']*cni[^']*'") {
             Throw "containerd 2.x: conf_dir CNI pattern not found in config.toml."
@@ -222,6 +225,9 @@ function Initialize-ContainerdService {
         $containerdConfigContent = $containerdConfigContent -replace "conf_dir\s*=\s*'[^']*containerd[^']*cni[^']*'", "conf_dir = 'c:\etc\cni\net.d'"
     } else {
         # containerd 1.x: bin_dir (double quotes)
+        if ($containerdConfigContent -notmatch 'bin_dir\s*=\s*"[^"]*\\cni\\[^"]*"') {
+            Throw "containerd 1.x: bin_dir CNI pattern not found in config.toml."
+        }
         $containerdConfigContent = $containerdConfigContent -replace 'bin_dir\s*=\s*"[^"]*\\cni\\[^"]*"', 'bin_dir = "c:\\opt\\cni\\bin"'
         if ($containerdConfigContent -notmatch 'conf_dir\s*=\s*"[^"]*containerd[^"]*cni[^"]*"') {
             Throw "containerd 1.x: conf_dir CNI pattern not found in config.toml."
