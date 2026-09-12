@@ -1,31 +1,33 @@
+# Accept versions passed as script parameters or via environment variables set by Packer.
+param(
+    [string]$KUBERNETES_VERSION = $env:KUBERNETES_VERSION,
+    [string]$CONTAINERD_VERSION = $env:CONTAINERD_VERSION
+)
+
 $envPathRegKey = "HKLM:\SYSTEM\CurrentControlSet\Control\Session Manager\Environment"
 
-if ($env:KUBERNETES_VERSION -and $env:KUBERNETES_VERSION.Trim()) {
+# Determine effective Kubernetes version: prefer parameter, then env; fail if not provided.
+if ($KUBERNETES_VERSION -and $KUBERNETES_VERSION.Trim()) {
+    $kubernetes_ver = $KUBERNETES_VERSION.TrimStart('v')
+    Write-Output "Using Kubernetes version from parameter/env: $kubernetes_ver"
+} elseif ($env:KUBERNETES_VERSION -and $env:KUBERNETES_VERSION.Trim()) {
     $kubernetes_ver = $env:KUBERNETES_VERSION.TrimStart('v')
     Write-Output "Using Kubernetes version from environment: $kubernetes_ver"
 } else {
-    Write-Output "KUBERNETES_VERSION environment variable not set. Fetching latest version..."
-    $kubernetes_ver = Get-k8LatestVersion
-    $kubernetes_ver = $kubernetes_ver.TrimStart('v')
-    Write-Output "Using latest Kubernetes version: $kubernetes_ver"
+    throw "KUBERNETES_VERSION not provided. Set via Packer (-var 'kubernetes_version=...') or environment."
 }
 
-function Get-LatestToolVersion($repository) {
-    try {
-        $uri = "https://api.github.com/repos/$repository/releases/latest"
-        $response = Invoke-WebRequest -Uri $uri -UseBasicParsing
-        $version = ($response.content  | ConvertFrom-Json).tag_name
-        return $version.TrimStart("v")
-    }
-    catch {
-        Throw "Could not get $repository version. $_"
-    }
+# Determine effective Containerd version: prefer parameter, then env; fail if not provided.
+if ($CONTAINERD_VERSION -and $CONTAINERD_VERSION.Trim()) {
+    $containerd_ver = $CONTAINERD_VERSION.TrimStart('v')
+    Write-Output "Using Containerd version from parameter/env: $containerd_ver"
+} elseif ($env:CONTAINERD_VERSION -and $env:CONTAINERD_VERSION.Trim()) {
+    $containerd_ver = $env:CONTAINERD_VERSION.TrimStart('v')
+    Write-Output "Using Containerd version from environment: $containerd_ver"
+} else {
+    throw "CONTAINERD_VERSION not provided. Set via Packer (-var 'containerd_version=...') or environment."
 }
 
-function Get-ContainerdLatestVersion {
-    $latestVersion = Get-LatestToolVersion -Repository "containerd/containerd"
-    return $latestVersion
-}
 
 function Install-Containerd {
     param(
@@ -38,19 +40,16 @@ function Install-Containerd {
         $DownloadPath = "$HOME\Downloads"
     )
 
-    $Version = Get-ContainerdLatestVersion
-
-    $Version = $Version.TrimStart('v')
-    # TODO: revert to this line after finding the right way to handle the new containerd version
-    # $Version = $Version.TrimStart('v')
-    $Version = "1.7.25"
-    Write-Output "* Downloading and installing Containerd v$version at $InstallPath"
+    # Determine version: prefer explicit env/outer-scope value, else fallback to API
+    # Use the already-determined $containerd_ver (from env or default above)
+    $Version = $containerd_ver.TrimStart('v')
+    Write-Output "* Downloading and installing Containerd v$Version at $InstallPath"
 
     
     # Download file from repo
-    $containerdTarFile = "containerd-${version}-windows-amd64.tar.gz"
+    $containerdTarFile = "containerd-${Version}-windows-amd64.tar.gz"
     try {
-        $Uri = "https://github.com/containerd/containerd/releases/download/v$version/$($containerdTarFile)"
+        $Uri = "https://github.com/containerd/containerd/releases/download/v$Version/$($containerdTarFile)"
         Invoke-WebRequest -Uri $Uri -OutFile $DownloadPath\$containerdTarFile | Out-Null
     }
     catch {
@@ -70,7 +69,7 @@ function Install-Containerd {
     
     Install-RequiredFeature @params | Out-Null
 
-    Write-Output "* Containerd v$version successfully installed at $InstallPath"
+    Write-Output "* Containerd v$Version successfully installed at $InstallPath"
     containerd.exe -v 
 }
 
@@ -89,11 +88,11 @@ function Install-RequiredFeature {
         New-Item -ItemType Directory -Force -Path $InstallPath | Out-Null 
     }
 
-    # Untar file
+    # Untar file (use call operator to avoid argument splitting on paths with spaces)
     if ($DownloadPath.EndsWith("tar.gz")) {
-        tar.exe -xf $DownloadPath -C $InstallPath
-        if ($LASTEXITCODE -gt 0) {
-            Throw "Could not untar $DownloadPath. $_"
+        & tar.exe -xf "$DownloadPath" -C "$InstallPath"
+        if ($LASTEXITCODE -ne 0) {
+            Throw "Could not untar $DownloadPath. Exit code: $LASTEXITCODE"
         }
     }
 
@@ -196,7 +195,7 @@ function Initialize-ContainerdService {
     $containerdConfigFile = "$ContainerdPath\config.toml"
     $containerdDefault = containerd.exe config default
     $containerdDefault | Out-File $ContainerdPath\config.toml -Encoding ascii
-    Write-Information -InformationAction Continue -MessageData "* Review containerd configutations at $containerdConfigFile ..."
+    Write-Information -InformationAction Continue -MessageData "* Review containerd configurations at $containerdConfigFile ..."
 
     Add-MpPreference -ExclusionProcess "$ContainerdPath\containerd.exe"
 
@@ -212,35 +211,31 @@ function Initialize-ContainerdService {
     # Read the content of the config.toml file
     $containerdConfigContent = Get-Content -Path $containerdConfigFile -Raw
 
-    # Define the replacements
-    $replacements = @(
-        @{
-            Find = 'bin_dir = "C:\\Program Files\\containerd\\cni\\bin"'
-            Replace = 'bin_dir = "c:\\opt\\cni\\bin"'
-        },
-        @{
-            Find = 'conf_dir = "C:\\Program Files\\containerd\\cni\\conf"'
-            Replace = 'conf_dir = "c:\\etc\\cni\\net.d\\"'
-          }
-    )
-
-    # Perform the check and replacement in one loop
-    $replacementsMade = $false
-    foreach($replacement in $replacements) {
-        if ($containerdConfigContent -match [regex]::Escape($replacement.Find)) {
-            $containerdConfigContent = $containerdConfigContent -replace [regex]::Escape($replacement.Find), $replacement.Replace
-            $replacementsMade = $true
+    # Use the already-resolved $containerd_ver to pick the right config.toml key/quote format
+    $containerdMajor = [int]($containerd_ver -split '\.')[0]
+    if ($containerdMajor -ge 2) {
+        # containerd 2.x: bin_dirs (array, single quotes)
+        if ($containerdConfigContent -notmatch "bin_dirs\s*=\s*\['[^']*'\]") {
+            Throw "containerd 2.x: bin_dirs CNI pattern not found in config.toml."
         }
+        $containerdConfigContent = $containerdConfigContent -replace "bin_dirs\s*=\s*\['[^']*'\]", "bin_dirs = ['c:\opt\cni\bin']"
+        if ($containerdConfigContent -notmatch "conf_dir\s*=\s*'[^']*containerd[^']*cni[^']*'") {
+            Throw "containerd 2.x: conf_dir CNI pattern not found in config.toml."
+        }
+        $containerdConfigContent = $containerdConfigContent -replace "conf_dir\s*=\s*'[^']*containerd[^']*cni[^']*'", "conf_dir = 'c:\etc\cni\net.d'"
+    } else {
+        # containerd 1.x: bin_dir (double quotes)
+        if ($containerdConfigContent -notmatch 'bin_dir\s*=\s*"[^"]*\\cni\\[^"]*"') {
+            Throw "containerd 1.x: bin_dir CNI pattern not found in config.toml."
+        }
+        $containerdConfigContent = $containerdConfigContent -replace 'bin_dir\s*=\s*"[^"]*\\cni\\[^"]*"', 'bin_dir = "c:\\opt\\cni\\bin"'
+        if ($containerdConfigContent -notmatch 'conf_dir\s*=\s*"[^"]*containerd[^"]*cni[^"]*"') {
+            Throw "containerd 1.x: conf_dir CNI pattern not found in config.toml."
+        }
+        $containerdConfigContent = $containerdConfigContent -replace 'conf_dir\s*=\s*"[^"]*containerd[^"]*cni[^"]*"', 'conf_dir = "c:\\etc\\cni\\net.d\\"'
     }
 
-    # Write the modified content back to the config.toml file if any replacements were made
-    if ($replacementsMade) {
-        $containerdConfigContent | Set-Content -Path $containerdConfigFile
-        # Output a message indicating the changes
-        # Write-Host "Changes applied to $containerdConfigFile"
-        } else {
-        # Write-Host "No changes needed in $containerdConfigFile"
-    }
+    $containerdConfigContent | Set-Content -Path $containerdConfigFile
 
      # Create the folders if they do not exist
     $binDir = "c:\opt\cni\bin"
@@ -301,10 +296,6 @@ function Install-NSSM {
     Write-Output "* NSSM is installed  ..."
 }
 
-function Get-k8LatestVersion {
-    $latestVersion = Get-LatestToolVersion -Repository "kubernetes/kubernetes"
-    return $latestVersion
-}
 
 function Install-Kubelet {
     param (
@@ -381,9 +372,10 @@ function Get-Kubeadm {
         [string]
         $KubernetesVersion
     )
-
-    $KubernetesVersion = Get-k8LatestVersion
-    Write-Output "* The latest Kubernetes version is $KubernetesVersion"
+    if (-not $KubernetesVersion -or [string]::IsNullOrWhiteSpace($KubernetesVersion)) {
+        $KubernetesVersion = $kubernetes_ver
+    }
+    Write-Output "* The Kubernetes version used is $KubernetesVersion"
     $KubernetesVersion = $KubernetesVersion.TrimStart('v')
     
     try {
