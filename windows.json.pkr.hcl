@@ -17,7 +17,27 @@ locals {
 
 variable "vm_name" {
   type        = string
-  description = "Image name"
+  description = "Base image name; the build ID is appended to the temporary VM name"
+}
+
+variable "build_id" {
+  type        = string
+  description = "Unique ID supplied by scripts\\Build-WindowsImage.ps1"
+
+  validation {
+    condition     = can(regex("^[a-zA-Z0-9][a-zA-Z0-9-]{0,63}$", var.build_id))
+    error_message = "Build ID must contain 1-64 letters, digits, or hyphens and start with a letter or digit."
+  }
+}
+
+variable "output_directory" {
+  type        = string
+  description = "Isolated export directory for this build"
+
+  validation {
+    condition     = length(trimspace(var.output_directory)) > 0
+    error_message = "Output directory must be explicitly supplied for each build."
+  }
 }
 
 variable "vm_cpus" {
@@ -117,10 +137,12 @@ variable "guest_additions_mode" {
 }
 
 source "hyperv-iso" "windows-server" {
-  boot_command = ["a<enter><wait>"]
-  boot_wait    = "2s"
+  # Zero selects Packer's default 10-second delay; a negative duration skips it.
+  boot_wait    = "-1s"
+  boot_command = [for attempt in range(10) : "a<wait1>"]
 
-  vm_name               = var.vm_name
+  vm_name               = "${var.vm_name}-${var.build_id}"
+  output_directory      = var.output_directory
   cpus                  = var.vm_cpus
   memory                = var.vm_memory
   enable_dynamic_memory = var.dynamic_memory

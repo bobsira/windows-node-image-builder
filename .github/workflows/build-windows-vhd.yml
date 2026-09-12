@@ -20,6 +20,13 @@ on:
         required: false
         default: ''
 
+permissions:
+  contents: read
+
+concurrency:
+  group: windows-node-image-builder
+  cancel-in-progress: false
+
 jobs:
   build-upload-vhd:
     name: Build and Upload VHD
@@ -27,13 +34,6 @@ jobs:
       - self-hosted
       - windows
       - hyperv
-
-    env:
-      AZURE_STORAGE_ACCOUNT: ${{ secrets.AZURE_STORAGE_ACCOUNT }}
-      AZURE_STORAGE_KEY:     ${{ secrets.AZURE_STORAGE_KEY }}
-      AZURE_CONTAINER_NAME:  ${{ secrets.AZURE_STORAGE_CONTAINER }}
-      PACKER_LOG: '1'
-      PACKER_LOG_PATH: ${{ github.workspace }}\packer.log
 
     steps:
       - name: Checkout repository
@@ -46,120 +46,57 @@ jobs:
           Write-Host "Runner Labels:    $env:RUNNER_LABELS"
           Write-Host "PowerShell Ed.:   $($PSVersionTable.PSEdition) $($PSVersionTable.PSVersion)"
 
-      - name: Ensure Hyper-V is enabled
+      - name: Ensure Packer and Azure CLI are installed
         shell: powershell
         run: |
-          Start-Process powershell -Verb RunAs -ArgumentList '-NoProfile -Command {
-            Write-Host "Checking Hyper-V feature..."
-            $hv = Get-WindowsOptionalFeature -Online -FeatureName Microsoft-Hyper-V-All
-            if ($hv.State -ne "Enabled") {
-              throw "Hyper-V is not enabled on this host!"
+          $ErrorActionPreference = 'Stop'
+          foreach ($tool in @(
+            @{ Command = 'packer'; Package = 'packer' },
+            @{ Command = 'az'; Package = 'azure-cli' }
+          )) {
+            if (-not (Get-Command $tool.Command -ErrorAction SilentlyContinue)) {
+              if (-not (Get-Command choco -ErrorAction SilentlyContinue)) {
+                throw "Install Chocolatey or preinstall $($tool.Command) on this runner."
+              }
+              choco install $tool.Package -y --no-progress
+              if ($LASTEXITCODE -ne 0) {
+                throw "Installing $($tool.Package) failed with exit code $LASTEXITCODE."
+              }
+              $env:PATH = [Environment]::GetEnvironmentVariable('PATH', 'Machine') + ';' +
+                [Environment]::GetEnvironmentVariable('PATH', 'User')
+              Get-Command $tool.Command -ErrorAction Stop | Out-Null
             }
-            Write-Host "Hyper-V is enabled."
-          }' -Wait
-
-      # - name: Grant Hyper-V Administrators group membership
-      #   shell: powershell
-      #   run: |
-      #     $runnerUser = (whoami).Trim()
-      #     Write-Host "Adding '$runnerUser' to Hyper-V Administrators group..."
-      #     Add-LocalGroupMember -Group "Hyper-V Administrators" -Member $runnerUser -ErrorAction Stop
-      #     Write-Host "Current Hyper-V Administrators members:"
-      #     Get-LocalGroupMember -Group "Hyper-V Administrators" | ForEach-Object { Write-Host $_.Name }
-
-      - name: Install Chocolatey, Packer & Azure CLI
-        shell: powershell
-        run: |
-          Start-Process powershell -Verb RunAs -ArgumentList '-NoProfile -Command {
-            Write-Host "Checking and installing dependencies…"
-
-            if (-not (Get-Command choco -ErrorAction SilentlyContinue)) {
-              Write-Host "Installing Chocolatey…"
-              Set-ExecutionPolicy Bypass -Scope Process -Force
-              [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
-              Invoke-Expression ((New-Object Net.WebClient).DownloadString("https://community.chocolatey.org/install.ps1"))
-            } else {
-              Write-Host "Chocolatey already present."
-            }
-
-            if (-not (Get-Command packer -ErrorAction SilentlyContinue)) {
-              Write-Host "Installing Packer…"
-              choco install packer -y
-            } else {
-              Write-Host "Packer already present."
-            }
-
-            if (-not (Get-Command az -ErrorAction SilentlyContinue)) {
-              Write-Host "Installing Azure CLI…"
-              choco install azure-cli -y
-            } else {
-              Write-Host "Azure CLI already present."
-            }
-          }' -Wait
-
-      - name: Initialize & Validate Packer
-        shell: powershell
-        run: |
-          Write-Host "Initializing Packer…"
-          packer init windows.json.pkr.hcl
-
-          Write-Host "Formatting…"
-          packer fmt --var-file=./windows.auto.pkrvars.hcl windows.json.pkr.hcl
-
-          Write-Host "Validating…"
-          packer validate -var-file='windows.auto.pkrvars.hcl' windows.json.pkr.hcl
+          }
 
       - name: Build VHD with Packer
+        id: build
         shell: powershell
         env:
           KUBERNETES_VERSION: ${{ inputs.kubernetes_version || '' }}
           WINDOWS_VERSION:    ${{ inputs.windows_version    || '' }}
           CONTAINERD_VERSION: ${{ inputs.containerd_version    || '' }}
         run: |
-            $k = $env:KUBERNETES_VERSION
-            $w = $env:WINDOWS_VERSION
-            $c = $env:CONTAINERD_VERSION
-            $extra = @()
-            if ($k -and $k -ne '') { $extra += @('-var', "kubernetes_version=$k") }
-            if ($w -and $w -ne '') { $extra += @('-var', "windows_version=$w") }
-            if ($c -and $c -ne '') { $extra += @('-var', "containerd_version=$c") }
-            Write-Host "Starting Packer build…"
-            if ($extra.Count -gt 0) {
-              Write-Host "Passing extra vars to Packer: $extra"
-            }
-            packer build -force -on-error=abort --var-file=./windows.auto.pkrvars.hcl @extra windows.json.pkr.hcl
+          $ErrorActionPreference = 'Stop'
+          .\scripts\Build-WindowsImage.ps1 `
+            -WindowsVersion $env:WINDOWS_VERSION `
+            -KubernetesVersion $env:KUBERNETES_VERSION `
+            -ContainerdVersion $env:CONTAINERD_VERSION
 
-      - name: Locate generated VHD
+      - name: Publish canonical disk to Azure Blob Storage
         shell: powershell
+        env:
+          BUILD_RESULT_PATH: ${{ steps.build.outputs.result_path }}
+          AZURE_STORAGE_ACCOUNT: ${{ secrets.AZURE_STORAGE_ACCOUNT }}
+          AZURE_STORAGE_KEY: ${{ secrets.AZURE_STORAGE_KEY }}
+          AZURE_CONTAINER_NAME: ${{ secrets.AZURE_STORAGE_CONTAINER }}
         run: |
-          Write-Host "Searching for VHD in output directories..."
-          $vhd = Get-ChildItem -Path "./output*", "./output-*", "./output" -Include "*.vhd", "*.vhdx" -Recurse | Select-Object -First 1
-          if (-not $vhd) {
-            throw "No VHD file found in output directory!"
-          }
-          Write-Host "Found VHD: $($vhd.FullName)"
-          echo "VHD_PATH=$($vhd.FullName)" | Out-File -FilePath $env:GITHUB_ENV -Append    
-    
+          $ErrorActionPreference = 'Stop'
+          .\scripts\Publish-WindowsImage.ps1 -ResultPath $env:BUILD_RESULT_PATH
 
-      - name: Upload Packer log
-        if: always()
+      - name: Upload build and publication logs
+        if: always() && steps.build.outputs.log_directory != ''
         uses: actions/upload-artifact@v4
         with:
-          name: packer-log
-          path: packer.log
+          name: packer-log-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ steps.build.outputs.log_directory }}
           if-no-files-found: warn
-
-      - name: Upload VHD to Azure Blob Storage
-        shell: powershell
-        run: |
-          Write-Host "Uploading $env:VHD_PATH to blob container '$env:AZURE_CONTAINER_NAME'…"
-          az storage blob upload `
-            --only-show-errors `
-            --no-progress `
-            --account-name $env:AZURE_STORAGE_ACCOUNT `
-            --account-key  $env:AZURE_STORAGE_KEY `
-            --container-name $env:AZURE_CONTAINER_NAME `
-            --file         $env:VHD_PATH `
-            --name         (Split-Path $env:VHD_PATH -Leaf) `
-            --overwrite
-          Write-Host "Upload complete."
