@@ -131,6 +131,27 @@ verified nonempty disk distinguish a completed image from an initial placeholder
 
 ## GitHub Actions
 
+The workflow uses `actions/checkout@v7` and `actions/upload-artifact@v7`, which
+natively run on Node.js 24. Self-hosted runners require Actions Runner **2.327.1
+or newer**. The Windows/Hyper-V runner reported **2.337.0** in
+[run 34721519634](https://github.com/bobsira/windows-node-image-builder/actions/runs/34721519634),
+meeting that requirement. Checkout's separate credential storage requires
+2.329.0 or newer for authenticated Git commands inside Docker container actions;
+this workflow does not use those actions.
+
+See the upstream [checkout migration notes](https://github.com/actions/checkout/tree/v7.0.1#whats-new)
+and [upload-artifact release notes](https://github.com/actions/upload-artifact/releases/tag/v7.0.0).
+Checkout's new fork-PR restrictions do not affect this workflow's push/manual
+triggers. Artifact upload keeps the default ZIP mode, preserving directory
+uploads and the explicit per-run artifact name.
+
+After upgrading, confirm checkout, image build, canonical Azure publication, and
+log upload in a new workflow run. The Node.js 20 runtime-forcing warning should
+be absent. Upload-artifact v6 included a `punycode` deprecation fix, inherited by
+v7; whether either `punycode` or `url.parse()` warnings remain must still be
+checked in the new run. Record any remaining warnings with the run URL rather
+than suppressing them or opting back into Node.js 20.
+
 The workflow calls the same build and publication scripts. Its optional version
 inputs retain the var-file defaults when left blank. A branch-independent
 concurrency group prevents this repository's workflows from overlapping without
@@ -143,6 +164,13 @@ diagnostics when that stage ran. If a failure happens before the build entry
 point can create its log directory, inspect the workflow step's own log.
 
 ## Diagnosing failures and cleanup
+
+Kubeadm and kubelet downloads are verified against the release's SHA-256 checksum
+before replacing the destination executable. Each download attempt uses a
+300-second timeout per request, with up to three attempts and 5/10-second retry
+delays. Failed attempts log exception details and HTTP status when available.
+Partial files are removed, and exhausting retries terminates provisioning rather
+than exporting an image with a missing or corrupt binary.
 
 Packer runs with `-on-error=abort`. The failed VM and its associated files are
 preserved, and a new run cannot reuse their unique identity. Logs include
@@ -165,7 +193,7 @@ sensitive machine details; keep their filesystem and artifact access restricted.
 
 ## Script checks
 
-Run both test suites with one command (Pester 4.9.0 must be installed):
+Run the test suites with one command (Pester 4.9.0 must be installed):
 
 ```powershell
 .\scripts\Test-WindowsImage.ps1

@@ -297,6 +297,69 @@ function Install-NSSM {
 }
 
 
+function Get-KubernetesBinary {
+    param(
+        [Parameter(Mandatory = $true)]
+        [ValidateSet('kubeadm', 'kubelet')]
+        [string]$Name,
+        [Parameter(Mandatory = $true)]
+        [ValidateNotNullOrEmpty()]
+        [string]$KubernetesVersion,
+        [string]$DestinationDirectory = 'C:\k'
+    )
+
+    $version = $KubernetesVersion.Trim().TrimStart('v')
+    $uri = "https://dl.k8s.io/v$version/bin/windows/amd64/$Name.exe"
+    $destination = Join-Path $DestinationDirectory "$Name.exe"
+    New-Item -ItemType Directory -Path $DestinationDirectory -Force -ErrorAction Stop | Out-Null
+    $partial = Join-Path $DestinationDirectory "$Name-$([guid]::NewGuid().ToString('N')).partial"
+    $checksumPath = "$partial.sha256"
+
+    for ($attempt = 1; $attempt -le 3; $attempt++) {
+        try {
+            Write-Host "Downloading $Name v$version (attempt $attempt/3)."
+            Invoke-WebRequest -Uri $uri -OutFile $partial -UseBasicParsing -TimeoutSec 300 -ErrorAction Stop | Out-Null
+            Invoke-WebRequest -Uri "$uri.sha256" -OutFile $checksumPath -UseBasicParsing -TimeoutSec 300 -ErrorAction Stop | Out-Null
+            $checksum = (Get-Content -LiteralPath $checksumPath -Raw -ErrorAction Stop).Trim()
+            if ($checksum -notmatch '^[a-fA-F0-9]{64}$') {
+                throw "Invalid SHA-256 response for $Name v$version."
+            }
+            if ((Get-Item -LiteralPath $partial -ErrorAction Stop).Length -eq 0) {
+                throw "Downloaded $Name v$version is empty."
+            }
+            $actual = (Get-FileHash -LiteralPath $partial -Algorithm SHA256 -ErrorAction Stop).Hash
+            if ($actual -ine $checksum) {
+                throw "SHA-256 mismatch for $Name v$version. Expected $checksum; got $actual."
+            }
+            Move-Item -LiteralPath $partial -Destination $destination -Force -ErrorAction Stop
+            Write-Host "Downloaded and verified $Name v$version at $destination."
+            return
+        } catch {
+            $exception = $_.Exception
+            $details = @()
+            while ($null -ne $exception) {
+                $details += "$($exception.GetType().FullName): $($exception.Message)"
+                if ($exception.PSObject.Properties['Response'] -and $null -ne $exception.Response -and
+                    $exception.Response.PSObject.Properties['StatusCode']) {
+                    $details += "HTTP status: $([int]$exception.Response.StatusCode)"
+                }
+                $exception = $exception.InnerException
+            }
+            Write-Warning "Download of $Name v$version failed (attempt $attempt/3): $($details -join ' | ')"
+            if ($attempt -eq 3) {
+                throw
+            }
+        } finally {
+            foreach ($path in @($partial, $checksumPath)) {
+                if (Test-Path -LiteralPath $path -ErrorAction Stop) {
+                    Remove-Item -LiteralPath $path -Force -ErrorAction Stop
+                }
+            }
+        }
+        Start-Sleep -Seconds (5 * $attempt)
+    }
+}
+
 function Install-Kubelet {
     param (
         [string]
@@ -310,15 +373,7 @@ function Install-Kubelet {
         return
     }
 
-    # Define the URL for kubelet download
-    $KubeletUrl = "https://dl.k8s.io/v$KubernetesVersion/bin/windows/amd64/kubelet.exe"
-
-    # Download kubelet
-    try {
-        Invoke-WebRequest -Uri $KubeletUrl -OutFile "c:\k\kubelet.exe" | Out-Null
-    } catch {
-        Write-Error "Failed to download kubelet: $_"
-    }
+    Get-KubernetesBinary -Name kubelet -KubernetesVersion $KubernetesVersion
 
     # Create the Start-kubelet.ps1 script
     @"
@@ -376,13 +431,7 @@ function Get-Kubeadm {
         $KubernetesVersion = $kubernetes_ver
     }
     Write-Output "* The Kubernetes version used is $KubernetesVersion"
-    $KubernetesVersion = $KubernetesVersion.TrimStart('v')
-    
-    try {
-        Invoke-WebRequest -Uri "https://dl.k8s.io/v$KubernetesVersion/bin/windows/amd64/kubeadm.exe" -OutFile "c:\k\kubeadm.exe" | Out-Null
-    } catch {
-        Write-Error "Failed to download kubeadm: $_"
-    }
+    Get-KubernetesBinary -Name kubeadm -KubernetesVersion $KubernetesVersion
 }
 
 

@@ -212,14 +212,14 @@ build {
     script = "./setup/configure-vm.ps1"
   }
 
-  provisioner "windows-update" {
-    search_criteria = "IsInstalled=0"
-    filters = [
-      "exclude:$_.Title -like '*Preview*'",
-      "include:$true",
-    ]
-    update_limit = 25
-  }
+  # provisioner "windows-update" {
+  #   search_criteria = "IsInstalled=0"
+  #   filters = [
+  #     "exclude:$_.Title -like '*Preview*'",
+  #     "include:$true",
+  #   ]
+  #   update_limit = 25
+  # }
 
   provisioner "windows-restart" {
     # marker for logs

@@ -37,7 +37,7 @@ jobs:
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Display runner info
         shell: powershell
@@ -95,7 +95,7 @@ jobs:
 
       - name: Upload build and publication logs
         if: always() && steps.build.outputs.log_directory != ''
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: packer-log-${{ github.run_id }}-${{ github.run_attempt }}
           path: ${{ steps.build.outputs.log_directory }}
