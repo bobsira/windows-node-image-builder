@@ -4,10 +4,6 @@ packer {
       version = ">= 1.0.0"
       source  = "github.com/hashicorp/hyperv"
     }
-    windows-update = {
-      version = ">= 0.14.0"
-      source  = "github.com/rgl/windows-update"
-    }
   }
 }
 
@@ -211,15 +207,6 @@ build {
     ]
     script = "./setup/configure-vm.ps1"
   }
-
-  # provisioner "windows-update" {
-  #   search_criteria = "IsInstalled=0"
-  #   filters = [
-  #     "exclude:$_.Title -like '*Preview*'",
-  #     "include:$true",
-  #   ]
-  #   update_limit = 25
-  # }
 
   provisioner "windows-restart" {
     # marker for logs
